@@ -1,0 +1,195 @@
+---
+title: "Lab 3"
+author: Seungah Lee
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part one: Extracting and loading data
+```{r}
+library(readxl)
+library(tidyverse)
+library(dplyr)
+
+dat <- readxl::read_xls('GSS.xls')
+str(dat) 
+
+```
+
+
+## Part two: Exploration
+
+**0. Use ggplot2 to create the plots, and dplyr to manipulate the data frame as much as possible. You may want to rename the columns of the data frame for your convenience using rename in dplyr.**
+
+```{r}
+dat <- dat %>% 
+  rename(year = 'Gss year for this respondent', 
+         happiness = 'General happiness',
+         belief = 'Religion in which raised',
+         party = 'Political party affiliation', 
+         income = 'Total family income', 
+         sex = 'Respondents sex', 
+         edu = 'Highest year of school completed', 
+         age = 'Age of respondent', 
+         marital = 'Marital status', 
+         work = 'Number of hours usually work a week',
+         id = 'Respondent id number', 
+         ballot = 'Ballot used for interview')
+
+names(dat)
+```
+
+
+**1. Find the average years of education for the respondents with each political party affiliation. Arrange your output in a meaningful order and print. Describe any patterns you find.**
+
+```{r}
+dat$edu <- as.numeric(as.character(dat$edu))
+
+datparty <- dat %>%
+  group_by(party) %>%
+  summarise(mean = mean(edu, na.rm = TRUE)) %>%
+  arrange(mean)
+
+print(datparty)
+```
+
+According to the data, republicans appeared to have the highest average education years. Conversely, those who answered "Don't know" had the lowest educational training.
+
+**2. Create a single data frame containing records for the better educated respondents in each political party affiliation. A “better educated” respondent is someone who has strictly more years of education than the median in the same party affiliation. Print the structure of the data frame.**
+
+```{r}
+better <- dat %>%
+  select(party, edu) %>%
+  drop_na %>%
+  group_by(party) %>%
+  filter(edu > median(edu, na.rm=TRUE))
+
+str(better)
+```
+
+
+**3. How is the happiness of a respondent related to his/her marriage status? Define that a person is happy if the response to question is “Very happy” or “Pretty happy”.**
+
+```{r}
+library(ggplot2)
+
+status <- dat %>% 
+  filter(!is.na(marital)) %>%
+  ggplot(aes(x = marital, fill = happiness)) + 
+  geom_bar(position = 'fill') + 
+  ggtitle('Barplot of Happiness to Respondent Marital Status')
+
+status
+
+very <- dat %>% 
+  mutate(happy = case_when(
+  happiness == "Pretty happy"  ~ "Very Happy"))
+
+very %>%
+  group_by(marital, happy) %>%
+  drop_na %>%
+  summarize(count = n())
+
+```
+
+When evaluated based on graphs and numerical, the number and ratio of "Pretty Happy" to "Very Happy" was the highest when the marital status was married. On the contrary, the marital status of separated showed the lowest number of "Pretty Happy" or "Very Happy" when we do not consider the variable no answer.
+
+
+**4. Does party affiliation affect the relationship you found in the last question?**
+
+```{r}
+partyrelation <- dat %>%
+  group_by(marital, happiness, party) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(partyrelation)
+
+relation <- partyrelation %>% 
+  select(marital, happiness, party)
+
+relation %>%
+  filter(!is.na(happiness)) %>%
+  filter(!is.na(marital)) %>%
+  ggplot(aes(x = marital, fill = happiness)) + 
+  geom_bar(position = 'fill') + 
+  ggtitle('Relationship according to Party Affiliation') +
+  facet_wrap(~ party) +
+  coord_flip()
+
+```
+
+Those who did not respond to the state of marriage had the highest level of happiness regardless of party. In the case of married couples, the happiness level was high when they did not know the party, and in the case of having certain party affiliation, the happiness level was evenly distributed from low to high.
+
+**5. How is marrital status related to the education of a respondent? What are possible reasons accounting for the patterns you see?**
+
+```{r}
+dat %>% 
+  filter(!is.na(marital)) %>%
+  ggplot(aes(x = marital, y = edu)) + 
+  geom_boxplot() +
+  ggtitle('Boxplot of Marrital Status related to the Education') +
+  xlab('Marital Status') +
+  ylab('Years of Education')
+
+dat %>%
+  group_by(marital) %>%
+  summarise(education = mean(edu, na.rm=TRUE)) %>%
+  arrange(desc(education))
+  
+```
+
+When excluding the marital status of 'No answer', the average number of years of education was the highest for respondents who were 'Never married'. This seems to be because unmarried people have more opportunities for education because they have no one to support, such as their spouses or children.
+
+**6. Explore two more interesting questions, and answer those questions using the GSS data.**
+
+##### Q1.How does the marital status affect income?
+
+```{r}
+dat %>%
+  group_by(marital, income) %>%
+  drop_na %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+
+dat %>% 
+  filter(!is.na(marital)) %>%
+  ggplot(aes(x = marital, fill = income)) + 
+  geom_bar(position='fill') +
+  ggtitle('Boxplot of Marrital Status related to the Education') +
+  xlab('Marital Status') +
+  ylab('Income index') +
+  labs(fill = 'Total Income')
+
+
+```
+
+Married people overwhelmingly had the highest income. This may be due to the creation of an environment in which two people can earn stable income. The second highest grossing is from unmarried people, who are believed to have made higher income because they have no family to support and can build a stable career.
+
+
+##### Q2. What is the effect of religion on happiness?
+```{r}
+dat %>%
+  group_by(belief, happiness) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+
+dat %>%
+  filter(!is.na(belief)) %>%
+  ggplot(aes(x = belief, fill = happiness)) + 
+  geom_bar(position = 'fill') + 
+  ggtitle('Barplot of Happiness to Respondent Marital Status') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+The religions that showed the highest level of happiness were Protestant and Catholic.
+
+
+
+
